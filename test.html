@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Gauge Chart</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #000;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .canvas-container {
+      width: 90vw;
+      max-width: 500px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    .input-section {
+      position: absolute;
+      bottom: 40px;
+      width: 100%;
+      text-align: center;
+      color: white;
+    }
+
+    .input-section input {
+      width: 80px;
+      padding: 5px;
+    }
+
+    .input-section button {
+      padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="canvas-container">
+    <canvas id="gaugeCanvas"></canvas>
+  </div>
+
+  <div class="input-section">
+    <label for="userInput">Enter a value:</label>
+    <input type="number" id="userInput" placeholder="0 - 100" min="0" max="100">
+    <button onclick="updateGauge()">Set</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gaugeCanvas');
+    const ctx = canvas.getContext('2d');  
+
+    const info = [
+      { colorName: "Blue", hexCode: "#0000FF", threshold: 10 },
+      { colorName: "Green", hexCode: "#00FF00", threshold: 30 },
+      { colorName: "Yellow", hexCode: "#FFFF00", threshold: 60 },
+      { colorName: "Orange", hexCode: "#FFA500", threshold: 80 },
+      { colorName: "Red", hexCode: "#FF0000", threshold: 100 }
+    ];
+
+    function degreesToRadians(deg) {
+      return deg * (Math.PI / 180);
+    }
+
+    const startAngle = degreesToRadians(150);
+    const endAngle = degreesToRadians(390);
+    const totalAngle = endAngle - startAngle;
+
+    let currentValue = 0;
+    let targetValue = 0;
+    let centerX = 0;
+    let centerY = 0;
+    let radius = 0;
+
+    function drawGauge(value) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      centerX = canvas.width / 2;
+      centerY = canvas.height / 2;
+      radius = Math.min(canvas.width, canvas.height) * 0.45;
+
+      // Background arc
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+      ctx.lineWidth = Math.max(2, radius * 0.1);
+      ctx.strokeStyle = '#555';
+      ctx.stroke();
+
+      // Colored segments
+      let sa = startAngle;
+      for (let i = 0; i < 5; i++) {
+        const ea = startAngle + (info[i].threshold / 100) * totalAngle;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, radius, sa, ea);
+        ctx.lineWidth = Math.max(2, radius * 0.1);
+        ctx.strokeStyle = info[i].colorName;
+        ctx.stroke();
+        sa = ea;
+      }
+
+      drawTicks(50, radius - 40, radius - 25);
+      drawTicks(5, radius - 40, radius - 49);
+
+      drawLabelsInside(5, 0, 100, radius);
+
+      // Needle
+      const needleAngle = startAngle + (value / 100) * totalAngle;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY); 
+      const needleLength = radius * 0.6;
+      ctx.lineTo(
+        centerX + needleLength * Math.cos(needleAngle),
+        centerY + needleLength * Math.sin(needleAngle)
+      );
+      ctx.lineWidth = Math.max(2, radius * 0.015);
+      ctx.strokeStyle = '#2196F3';
+      ctx.stroke();
+
+      // Needle center circle
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius * 0.04, 0, Math.PI * 2);
+      ctx.fillStyle = '#2196F3';
+      ctx.fill();
+
+      // Display value
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `${Math.max(10, radius * 0.09)}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.fillText(`[${value.toFixed(2)}]`, centerX, centerY + 20);
+    }
+
+    function drawTicks(tickCount, innerRadius, outerRadius, color = '#FFF') {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1, radius * 0.01);
+
+      for (let i = 0; i <= tickCount; i++) {
+        const angle = startAngle + (i / tickCount) * totalAngle;
+        const x1 = centerX + innerRadius * Math.cos(angle);
+        const y1 = centerY + innerRadius * Math.sin(angle);
+        const x2 = centerX + outerRadius * Math.cos(angle);
+        const y2 = centerY + outerRadius * Math.sin(angle);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+
+    function drawLabelsInside(labelCount, minValue, maxValue, radius) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `${10, radius * 0.1}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      for (let i = 0; i <= labelCount; i++) {
+        const value = minValue + (i / labelCount) * (maxValue - minValue);
+        const angle = startAngle + (i / labelCount) * totalAngle;
+        const labelRadius = radius * 0.4;
+        const x = centerX + labelRadius * Math.cos(angle);
+        const y = centerY + labelRadius * Math.sin(angle);
+        ctx.fillText(value.toFixed(2), x, y);
+      }
+    }
+
+    function animateNeedle() {
+      if (Math.abs(currentValue - targetValue) < 0.5) {
+        currentValue = targetValue;
+        drawGauge(currentValue);
+        return;
+      }
+      currentValue += (targetValue - currentValue) * 0.06;
+      drawGauge(currentValue);
+      requestAnimationFrame(animateNeedle);
+    }
+
+    function updateGauge() {
+      const input = document.getElementById('userInput').value;
+      const val = Math.min(100, Math.max(0, parseFloat(input)));
+
+      if (!isNaN(val) && val >= 0 && val <= 100) {
+        targetValue = val;
+        animateNeedle();
+      }
+    }
+
+    function resizeCanvas() {
+      const container = canvas.parentElement;
+      const maxWidth = container.offsetWidth;
+      const maxHeight = window.innerHeight - 150;
+
+      let width = maxWidth;
+      let height = width * 0.8;
+
+      if (height > maxHeight) {
+        height = maxHeight;
+        width = height / 0.8;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      drawGauge(currentValue);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    animateNeedle();
+  </script>
+</body>
+</html>
